@@ -98,59 +98,57 @@ public class MainActivityTest {
 
   @Test
   public void testUpdateSmbExceptionShouldNotThrowNPE() {
-    ActivityScenario<MainActivity> scenario = launch(MainActivity.class);
+    try (ActivityScenario<MainActivity> scenario = launch(MainActivity.class)) {
 
-    ShadowLooper.idleMainLooper();
+      ShadowLooper.idleMainLooper();
 
-    scenario.moveToState(Lifecycle.State.STARTED);
+      scenario.moveToState(Lifecycle.State.STARTED);
 
-    scenario.onActivity(
-        activity -> {
-          String path = "smb://root:toor@192.168.1.1";
-          String oldName = "SMB connection";
-          String newName = "root@192.168.1.1";
-          try {
+      scenario.onActivity(
+          activity -> {
+            String path = "smb://root:toor@192.168.1.1";
+            String oldName = "SMB connection";
+            String newName = "root@192.168.1.1";
+            try {
 
-            activity.addConnection(
-                false,
-                oldName,
-                path,
-                SmbUtil.getSmbEncryptedPath(ApplicationProvider.getApplicationContext(), path),
-                null,
-                null);
-            activity.addConnection(
-                true,
-                newName,
-                path,
-                SmbUtil.getSmbEncryptedPath(ApplicationProvider.getApplicationContext(), path),
-                oldName,
-                path);
+              activity.addConnection(
+                  false,
+                  oldName,
+                  path,
+                  SmbUtil.getSmbEncryptedPath(ApplicationProvider.getApplicationContext(), path),
+                  null,
+                  null);
+              activity.addConnection(
+                  true,
+                  newName,
+                  path,
+                  SmbUtil.getSmbEncryptedPath(ApplicationProvider.getApplicationContext(), path),
+                  oldName,
+                  path);
 
-            ShadowLooper.idleMainLooper();
+              ShadowLooper.idleMainLooper();
 
-            await()
-                .atMost(5, TimeUnit.SECONDS)
-                .until(() -> AppConfig.getInstance().getUtilsHandler().getSmbList().size() > 0);
-            await()
-                .atMost(5, TimeUnit.SECONDS)
-                .until(
-                    () ->
-                        AppConfig.getInstance()
-                            .getUtilsHandler()
-                            .getSmbList()
-                            .get(0)[0]
-                            .equals(newName));
-            List<String[]> verify = AppConfig.getInstance().getUtilsHandler().getSmbList();
-            assertEquals(1, verify.size());
-            String[] entry = verify.get(0);
-            assertEquals(path, entry[1]);
+              await()
+                  .atMost(5, TimeUnit.SECONDS)
+                  .until(() -> AppConfig.getInstance().getUtilsHandler().getSmbList().size() > 0);
+              await()
+                  .atMost(5, TimeUnit.SECONDS)
+                  .until(
+                      () ->
+                          AppConfig.getInstance()
+                              .getUtilsHandler()
+                              .getSmbList()
+                              .get(0)[0]
+                              .equals(newName));
+              List<String[]> verify = AppConfig.getInstance().getUtilsHandler().getSmbList();
+              assertEquals(1, verify.size());
+              String[] entry = verify.get(0);
+              assertEquals(path, entry[1]);
 
-          } catch (GeneralSecurityException | IOException e) {
-            fail(e.getMessage());
-          } finally {
-            scenario.moveToState(Lifecycle.State.DESTROYED);
-            scenario.close();
-          }
-        });
+            } catch (GeneralSecurityException | IOException e) {
+              fail(e.getMessage());
+            }
+          });
+    }
   }
 }

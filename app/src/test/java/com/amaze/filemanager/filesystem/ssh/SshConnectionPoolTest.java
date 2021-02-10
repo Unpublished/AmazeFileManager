@@ -101,7 +101,7 @@ public class SshConnectionPoolTest {
 
           @Override
           public boolean equals(@Nullable Object obj) {
-            if (obj == null || !(obj instanceof KeyProvider)) return false;
+            if (!(obj instanceof KeyProvider)) return false;
             else {
               KeyProvider other = (KeyProvider) obj;
               try {
@@ -127,325 +127,342 @@ public class SshConnectionPoolTest {
 
   @Test
   public void testGetConnectionWithUsernameAndPassword() throws IOException {
-    SSHClient mock = createSshServer("testuser", "testpassword");
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection(
-                "127.0.0.1",
-                22222,
-                SecurityUtils.getFingerprint(hostKeyPair.getPublic()),
-                "testuser",
-                "testpassword",
-                null));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection(
-                "127.0.0.1",
-                22222,
-                SecurityUtils.getFingerprint(hostKeyPair.getPublic()),
-                "invaliduser",
-                "invalidpassword",
-                null));
+    try (SSHClient mock = createSshServer("testuser", "testpassword")) {
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection(
+                  "127.0.0.1",
+                  22222,
+                  SecurityUtils.getFingerprint(hostKeyPair.getPublic()),
+                  "testuser",
+                  "testpassword",
+                  null));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection(
+                  "127.0.0.1",
+                  22222,
+                  SecurityUtils.getFingerprint(hostKeyPair.getPublic()),
+                  "invaliduser",
+                  "invalidpassword",
+                  null));
 
-    verify(mock, times(2))
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, times(2)).connect("127.0.0.1", 22222);
-    verify(mock).authPassword("testuser", "testpassword");
-    verify(mock).authPassword("invaliduser", "invalidpassword");
+      verify(mock, times(2))
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, times(2)).connect("127.0.0.1", 22222);
+      verify(mock).authPassword("testuser", "testpassword");
+      verify(mock).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUsernameAndKey() throws IOException {
-    SSHClient mock = createSshServer("testuser", null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection(
-                "127.0.0.1",
-                22222,
-                SecurityUtils.getFingerprint(hostKeyPair.getPublic()),
-                "testuser",
-                null,
-                userKeyPair));
-    SshConnectionPool.getInstance().shutdown();
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection(
-                "127.0.0.1",
-                22222,
-                SecurityUtils.getFingerprint(hostKeyPair.getPublic()),
-                "invaliduser",
-                null,
-                userKeyPair));
+    try (SSHClient mock = createSshServer("testuser", null)) {
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection(
+                  "127.0.0.1",
+                  22222,
+                  SecurityUtils.getFingerprint(hostKeyPair.getPublic()),
+                  "testuser",
+                  null,
+                  userKeyPair));
+      SshConnectionPool.getInstance().shutdown();
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection(
+                  "127.0.0.1",
+                  22222,
+                  SecurityUtils.getFingerprint(hostKeyPair.getPublic()),
+                  "invaliduser",
+                  null,
+                  userKeyPair));
 
-    verify(mock, times(2))
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, times(2)).connect("127.0.0.1", 22222);
-    verify(mock).authPublickey("testuser", sshKeyProvider);
-    verify(mock).authPublickey("invaliduser", sshKeyProvider);
+      verify(mock, times(2))
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, times(2)).connect("127.0.0.1", 22222);
+      verify(mock).authPublickey("testuser", sshKeyProvider);
+      verify(mock).authPublickey("invaliduser", sshKeyProvider);
+    }
   }
 
   @Test
   public void testGetConnectionWithUrl() throws IOException {
     String validPassword = "testpassword";
-    SSHClient mock = createSshServer("testuser", validPassword);
-    saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://testuser:testpassword@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer("testuser", validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://testuser:testpassword@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
-    verify(mock).authPassword("testuser", "testpassword");
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock).authPassword("testuser", "testpassword");
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlAndKeyAuth() throws IOException {
-    SSHClient mock = createSshServer("testuser", null);
-    saveSshConnectionSettings(hostKeyPair, "testuser", null, userKeyPair.getPrivate());
-    assertNotNull(SshConnectionPool.getInstance().getConnection("ssh://testuser@127.0.0.1:22222"));
-    assertNull(SshConnectionPool.getInstance().getConnection("ssh://invaliduser@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer("testuser", null)) {
+      saveSshConnectionSettings(hostKeyPair, "testuser", null, userKeyPair.getPrivate());
+      assertNotNull(
+          SshConnectionPool.getInstance().getConnection("ssh://testuser@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance().getConnection("ssh://invaliduser@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPublickey("testuser", sshKeyProvider);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPublickey("invaliduser", sshKeyProvider);
+      verify(mock).authPublickey("testuser", sshKeyProvider);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPublickey("invaliduser", sshKeyProvider);
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingComplexPassword1() throws IOException {
     String validPassword = "testP@ssw0rd";
-    SSHClient mock = createSshServer("testuser", validPassword);
-    saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://testuser:testP@ssw0rd@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer("testuser", validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://testuser:testP@ssw0rd@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword("testuser", validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword("testuser", validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingComplexPassword2() throws IOException {
     String validPassword = "testP@##word";
-    SSHClient mock = createSshServer("testuser", validPassword);
-    saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://testuser:testP@##word@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer("testuser", validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://testuser:testP@##word@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword("testuser", validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword("testuser", validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingComplexCredential1() throws IOException {
     String validPassword = "testP@##word";
-    SSHClient mock = createSshServer("testuser", validPassword);
-    saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://testuser:testP@##word@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer("testuser", validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://testuser:testP@##word@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword("testuser", validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword("testuser", validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingComplexCredential2() throws IOException {
     String validPassword = "testP@##word";
-    SSHClient mock = createSshServer("testuser", validPassword);
-    saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://testuser:testP@##word@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer("testuser", validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, "testuser", validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://testuser:testP@##word@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword("testuser", validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword("testuser", validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingComplexCredential3() throws IOException {
     String validUsername = "test@example.com";
     String validPassword = "testP@ssw0rd";
-    SSHClient mock = createSshServer(validUsername, validPassword);
-    saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://test@example.com:testP@ssw0rd@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer(validUsername, validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://test@example.com:testP@ssw0rd@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword(validUsername, validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword(validUsername, validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingComplexCredential4() throws IOException {
     String validUsername = "test@example.com";
     String validPassword = "testP@ssw0##$";
-    SSHClient mock = createSshServer(validUsername, validPassword);
-    saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://test@example.com:testP@ssw0##$@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer(validUsername, validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://test@example.com:testP@ssw0##$@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword(validUsername, validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword(validUsername, validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingMinusSignInPassword1() throws IOException {
     String validUsername = "test@example.com";
     String validPassword = "abcd-efgh";
-    SSHClient mock = createSshServer(validUsername, validPassword);
-    saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://test@example.com:abcd-efgh@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer(validUsername, validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://test@example.com:abcd-efgh@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword(validUsername, validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword(validUsername, validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingMinusSignInPassword2() throws IOException {
     String validUsername = "test@example.com";
     String validPassword = "---------------";
-    SSHClient mock = createSshServer(validUsername, validPassword);
-    saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://test@example.com:---------------@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer(validUsername, validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://test@example.com:---------------@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword(validUsername, validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword(validUsername, validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingMinusSignInPassword3() throws IOException {
     String validUsername = "test@example.com";
     String validPassword = "--agdiuhdpost15";
-    SSHClient mock = createSshServer(validUsername, validPassword);
-    saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://test@example.com:--agdiuhdpost15@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer(validUsername, validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://test@example.com:--agdiuhdpost15@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword(validUsername, validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword(validUsername, validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   @Test
   public void testGetConnectionWithUrlHavingMinusSignInPassword4() throws IOException {
     String validUsername = "test@example.com";
     String validPassword = "t-h-i-s-i-s-p-a-s-s-w-o-r-d-";
-    SSHClient mock = createSshServer(validUsername, validPassword);
-    saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
-    assertNotNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://test@example.com:t-h-i-s-i-s-p-a-s-s-w-o-r-d-@127.0.0.1:22222"));
-    assertNull(
-        SshConnectionPool.getInstance()
-            .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
+    try (SSHClient mock = createSshServer(validUsername, validPassword)) {
+      saveSshConnectionSettings(hostKeyPair, validUsername, validPassword, null);
+      assertNotNull(
+          SshConnectionPool.getInstance()
+              .getConnection(
+                  "ssh://test@example.com:t-h-i-s-i-s-p-a-s-s-w-o-r-d-@127.0.0.1:22222"));
+      assertNull(
+          SshConnectionPool.getInstance()
+              .getConnection("ssh://invaliduser:invalidpassword@127.0.0.1:22222"));
 
-    verify(mock, atLeastOnce())
-        .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
-    verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
-    verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
+      verify(mock, atLeastOnce())
+          .addHostKeyVerifier(SecurityUtils.getFingerprint(hostKeyPair.getPublic()));
+      verify(mock, atLeastOnce()).setConnectTimeout(SshConnectionPool.SSH_CONNECT_TIMEOUT);
+      verify(mock, atLeastOnce()).connect("127.0.0.1", 22222);
 
-    verify(mock).authPassword(validUsername, validPassword);
-    // invalid username won't give host key. Should never called this
-    verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+      verify(mock).authPassword(validUsername, validPassword);
+      // invalid username won't give host key. Should never called this
+      verify(mock, never()).authPassword("invaliduser", "invalidpassword");
+    }
   }
 
   private SSHClient createSshServer(@NonNull String validUsername, @Nullable String validPassword)
